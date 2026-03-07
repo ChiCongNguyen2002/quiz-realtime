@@ -1,0 +1,29 @@
+# Binaries
+*.exe
+*.exe~
+*.dylib
+realtime-quiz
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Config (use config.example.yaml for template)
+config.yaml
+.env
