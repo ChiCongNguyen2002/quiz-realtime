@@ -5,7 +5,7 @@
 Thử tưởng tượng bạn đang tổ chức một cuộc thi quiz online. Có hàng trăm người cùng chơi một lúc.
 
 Bạn muốn:
-- Mỗi khi một người trả lời đúng, TẤT CẢ người chơi khác thấy ngay là ai đang dẫn đầu
+- Mỗi khi một người trả lời đúng, Tất cả người chơi khác thấy ngay là ai đang dẫn đầu
 - Không phải chờ ai bấm refresh gì cả
 - Phải thật nhanh, gần như ngay lập tức
 
@@ -117,16 +117,162 @@ Người chơi thấy ngay: "À, thằng A vừa được 8 điểm, nó đang d
 ## Giải pháp này giải quyết được những gì?
 
 | Yêu cầu | Có giải quyết không? |
-|----------|----------------|
-| User join session |  OK |
-| Nhiều user cùng session |  OK |
-| Real-time score |  OK |
-| Real-time leaderboard |  OK |
-| Scale được |  OK |
+|----------|---------------------|
+| User join session | OK |
+| Nhiều user cùng session | OK |
+| Real-time score | OK |
+| Real-time leaderboard | OK |
+| Scale được | OK |
 
 ---
 
-## Tổng kết
+## Cấu trúc dự án
+
+```
+quiz-realtime/
+|
++-- api/
+|   +-- handler/http/
+|       +-- quiz_handler.go
+|       +-- router.go
+|       +-- websocket_handler.go
+|
++-- configs/
+|   +-- config.go
+|   +-- config.yaml
+|
++-- internal/
+|   +-- constants/
+|   |   +-- redis.go
+|   |   +-- websocket.go
+|   |   +-- json.go
+|   |
+|   +-- domain/
+|   |   +-- quiz/
+|   |   +-- session/
+|   |   +-- leaderboard/
+|   |
+|   +-- dto/
+|   |   +-- quiz/
+|   |   +-- websocket/
+|   |
+|   +-- infrastructure/
+|   |   +-- notification/
+|   |   +-- repository/
+|   |   |   +-- postgres/
+|   |   |   +-- redis/
+|   |   +-- websocket/
+|   |
+|   +-- service/quiz/
+|       +-- service.go
+|
++-- pkg/
+|   +-- database/
+|   +-- redis/
+|
++-- main.go
++-- Dockerfile
++-- go.mod
++-- README.md
+```
+
+---
+
+## Cách chạy dự án
+
+### Yêu cầu
+
+- Go 1.22 trở lên
+- Docker
+- PostgreSQL (có thể chạy bằng Docker)
+- Redis (có thể chạy bằng Docker)
+
+### Bước 1: Chạy PostgreSQL và Redis bằng Docker
+
+```bash
+# PostgreSQL
+docker run -d --name postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=quiz \
+  -p 5432:5432 \
+  postgres:15
+
+# Redis
+docker run -d --name redis \
+  -p 6379:6379 \
+  redis:7-alpine
+```
+
+### Bước 2: Cài đặt thư viện
+
+```bash
+go mod tidy
+```
+
+### Bước 3: Chạy ứng dụng
+
+```bash
+go run main.go
+```
+
+Server sẽ chạy ở http://localhost:8080
+
+---
+
+## Cách sử dụng API
+
+### Tạo session mới
+
+```bash
+curl -X POST http://localhost:8080/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"quiz_id": "quiz_1"}'
+```
+
+### Join session
+
+```bash
+curl -X POST http://localhost:8080/api/sessions/session_123/join \
+  -H "Content-Type: application/json" \
+  -d '{"user_id": "user_1"}'
+```
+
+### Submit đáp án
+
+```bash
+curl -X POST http://localhost:8080/api/sessions/session_123/submit \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user_1",
+    "answers": [
+      {"question_id": "q1", "answer": "A"},
+      {"question_id": "q2", "answer": "C"}
+    ]
+  }'
+```
+
+### Xem leaderboard
+
+```bash
+curl http://localhost:8080/api/sessions/session_123/leaderboard
+```
+
+### Kết nối WebSocket
+
+Từ trình duyệt:
+
+```javascript
+const ws = new WebSocket('ws://localhost:8080/ws?session_id=session_123');
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Leaderboard updated:', data.leaderboard);
+};
+```
+
+---
+
+## Tóm lại
 
 Bài toán này về cơ bản là bài toán **truyền tin real-time**.
 
