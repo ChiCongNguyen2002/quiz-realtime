@@ -5,18 +5,20 @@ import (
 )
 
 type SubmitAnswerRequest struct {
-	UserID  string `json:"user_id"`
-	Answers []struct {
-		QuestionID string `json:"question_id"`
-		Answer     string `json:"answer"`
-	} `json:"answers"`
+	UserID  string   `json:"user_id"`
+	Answers []Answer `json:"answers"`
+}
+
+type Answer struct {
+	QuestionID string `json:"question_id"`
+	Answer    string `json:"answer"`
 }
 
 type SubmitAnswerResponse struct {
-	SessionID   string                    `json:"session_id"`
-	UserID      string                    `json:"user_id"`
-	Score       int                       `json:"score"`
-	Leaderboard []domainLeaderboard.Entry `json:"leaderboard"`
+	SessionID   string                      `json:"session_id"`
+	UserID      string                      `json:"user_id"`
+	Score       int                         `json:"score"`
+	Leaderboard []domainLeaderboard.Entry  `json:"leaderboard"`
 }
 
 type CreateSessionRequest struct {
@@ -38,6 +40,6 @@ type JoinSessionResponse struct {
 }
 
 type GetLeaderboardResponse struct {
-	SessionID   string                    `json:"session_id"`
-	Leaderboard []domainLeaderboard.Entry `json:"leaderboard"`
+	SessionID   string                      `json:"session_id"`
+	Leaderboard []domainLeaderboard.Entry  `json:"leaderboard"`
 }

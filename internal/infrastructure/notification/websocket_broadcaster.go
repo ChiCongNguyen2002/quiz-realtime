@@ -2,9 +2,11 @@ package notification
 
 import (
 	"encoding/json"
+	"log"
 
-	domainLeaderboard "quiz-realtime/internal/domain/leaderboard"
-	dto "quiz-realtime/internal/dto/quiz"
+	"quiz-realtime/internal/constants"
+	quizDTO "quiz-realtime/internal/dto/quiz"
+	wsDTO "quiz-realtime/internal/dto/websocket"
 	ws "quiz-realtime/internal/infrastructure/websocket"
 )
 
@@ -18,26 +20,25 @@ func NewWebsocketBroadcaster(hub *ws.Hub) *WebsocketBroadcaster {
 	}
 }
 
-func (b *WebsocketBroadcaster) BroadcastLeaderboardUpdated(resp dto.SubmitAnswerResponse) error {
+func (b *WebsocketBroadcaster) BroadcastLeaderboardUpdated(resp quizDTO.SubmitAnswerResponse) error {
 	if b.Hub == nil {
 		return nil
 	}
 
-	payload := struct {
-		Type        string                    `json:"type"`
-		SessionID   string                    `json:"session_id"`
-		Leaderboard []domainLeaderboard.Entry `json:"leaderboard"`
-	}{
-		Type:        "leaderboard_update",
+	payload := wsDTO.LeaderboardUpdateResponse{
+		Type:        constants.WebSocketEventLeaderboardUpdate,
 		SessionID:   resp.SessionID,
+		UserID:      resp.UserID,
+		Score:       resp.Score,
 		Leaderboard: resp.Leaderboard,
 	}
 
 	data, err := json.Marshal(payload)
 	if err != nil {
+		log.Printf("failed to marshal leaderboard payload: %v", err)
 		return err
 	}
 
-	b.Hub.Broadcast <- data
+	b.Hub.BroadcastToSession(resp.SessionID, data)
 	return nil
 }

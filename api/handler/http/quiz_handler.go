@@ -4,16 +4,13 @@ import (
 	nethttp "net/http"
 
 	dto "quiz-realtime/internal/dto/quiz"
-	ws "quiz-realtime/internal/infrastructure/websocket"
 	appQuiz "quiz-realtime/internal/service/quiz"
 
 	"github.com/gin-gonic/gin"
 )
 
 type QuizHandler struct {
-	Service           *appQuiz.Service
-	WebsocketHub      *ws.Hub
-	BroadcastOnSubmit bool
+	Service *appQuiz.Service
 }
 
 func (h *QuizHandler) CreateSession(c *gin.Context) {

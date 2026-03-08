@@ -1,169 +1,136 @@
 # Real-Time Quiz System
 
-Đây là một hệ thống quiz realtime đơn giản. Người dùng có thể:
+## Bài toán là gì?
 
-- Tham gia một **session quiz**
-- Trả lời câu hỏi
-- Thấy **điểm và bảng xếp hạng cập nhật ngay**
+Thử tưởng tượng bạn đang tổ chức một cuộc thi quiz online. Có hàng trăm người cùng chơi một lúc.
 
-Hệ thống sử dụng:
+Bạn muốn:
+- Mỗi khi một người trả lời đúng, TẤT CẢ người chơi khác thấy ngay là ai đang dẫn đầu
+- Không phải chờ ai bấm refresh gì cả
+- Phải thật nhanh, gần như ngay lập tức
 
-- **Go** cho backend
-- **Postgres** để lưu dữ liệu chính
-- **Redis** để tăng tốc leaderboard
-- **WebSocket** để cập nhật realtime
+Đó chính là bài toán mà hệ thống này giải quyết.
 
 ---
 
-# 1. Bài toán
+## Yêu cầu cụ thể là gì?
 
-Hệ thống cần giải quyết ba vấn đề chính.
+1. **User Participation** - Người chơi có thể join vào quiz session bằng session ID. Nhiều người cùng join vào một session được.
 
-## User Participation
-Người dùng phải có thể **tham gia một session quiz bằng mã session**.  
-Nhiều người có thể cùng tham gia một session và thi với nhau.
+2. **Real-Time Score Updates** - Khi người chơi submit đáp án, điểm số được cập nhật ngay lập tức. Hệ thống chấm điểm phải chính xác và nhất quán.
 
-## Real-Time Score Updates
-Khi người chơi gửi đáp án:
-
-- Hệ thống phải **tính điểm ngay**
-- Điểm phải **chính xác và không bị trùng**
-
-## Real-Time Leaderboard
-Session phải có **bảng xếp hạng của tất cả người chơi**.  
-Leaderboard cần **cập nhật ngay khi điểm thay đổi**.
+3. **Real-Time Leaderboard** - Leaderboard hiển thị thứ hạng của tất cả người tham gia. Cập nhật ngay khi có ai đó thay đổi điểm.
 
 ---
 
-# 2. Cách hệ thống hoạt động
+## Có những cách nào để giải quyết bài toán này?
 
-## Tạo session
-Host tạo một session cho một bộ câu hỏi.  
-Hệ thống tạo ra một **session ID** để người chơi tham gia.
+### Cách 1: HTTP Polling (Gọi API liên tục)
 
----
+Đây là cách đơn giản nhất mà nhiều người nghĩ đến đầu tiên.
 
-## Người chơi tham gia session
-Người chơi nhập **session ID** để vào phòng.
+**Hoạt động thế nào:**
+- Trình duyệt cứ 1-2 giây gọi một lần lên server: "Ê, có ai mới submit chưa?"
+- Server trả về danh sách điểm hiện tại
+- Trình duyệt hiển thị lên màn hình
 
-Hệ thống lưu lại thông tin:
+**Ưu điểm:**
+- Dễ viết, ai cũng làm được
+- Không cần công nghệ gì phức tạp
 
-- session
-- user
-
-Một session có thể có **nhiều người chơi cùng lúc**.
-
----
-
-## Người chơi nộp đáp án
-Khi người chơi submit bài:
-
-Server sẽ:
-
-1. Lấy danh sách câu hỏi của quiz
-2. So sánh đáp án
-3. Tính điểm
-4. Lưu điểm vào **Postgres**
-5. Cập nhật điểm vào **Redis leaderboard**
-
-Mỗi user trong một session chỉ có **một bản ghi điểm**.
+**Nhược điểm:**
+- Có độ trễ 1-2 giây (thực ra cũng khá là chậm)
+- Tốn băng thông vô ích (gọi liên tục dù không có gì mới)
+- Server chịu tải lớn khi nhiều người
+- Màn hình nhảy liên tục, nhìn khó chịu
 
 ---
 
-## Leaderboard realtime
-Sau khi điểm được cập nhật:
+### Cách 2: WebSocket
 
-- Leaderboard của session được cập nhật
-- Server gửi leaderboard mới tới tất cả người chơi qua **WebSocket**
+Đây là cách mà hệ thống này đang dùng.
 
-Người chơi sẽ thấy bảng xếp hạng **thay đổi ngay trên màn hình**.
+**Hoạt động thế nào:**
+- Trình duyệt mở kết nối WebSocket với server, giữ kết nối đó suốt
+- Khi muốn submit đáp án, gọi API bình thường
+- Server xử lý xong, đẩy kết quả qua WebSocket cho TẤT CẢ người trong phòng
 
----
+**Ưu điểm:**
+- Cực nhanh (gần như ngay lập tức)
+- Kết nối 2 chiều
+- Tốn ít tài nguyên
+- Hỗ trợ hàng ngàn người cùng lúc
 
-## Khi realtime không hoạt động
-Nếu WebSocket gặp lỗi, client vẫn có thể lấy leaderboard bằng API.
-
-Dữ liệu luôn được lưu trong **Postgres**, nên không bị mất.
-
----
-
-# 3. Các thành phần chính
-
-## Session
-Một session đại diện cho **một lần chơi quiz**.
-
-Một quiz có thể có **nhiều session khác nhau**.
+**Nhược điểm:**
+- Phức tạp hơn HTTP thông thường
+- Cần quản lý kết nối (nhưng đã có thư viện lo)
 
 ---
 
-## Participant
-Danh sách người chơi trong session.
+## Giải pháp hiện tại hoạt động thế nào?
 
-Mỗi participant gắn với:
+### Tổng quan
 
-- session
-- user
+Hệ thống gồm 4 phần chính:
+- **API Server (Go/Gin)**: Nhận request, xử lý nghiệp vụ
+- **WebSocket Hub**: Quản lý kết nối, gửi tin nhắn
+- **PostgreSQL**: Lưu câu hỏi, kết quả (database)
+- **Redis**: Lưu leaderboard (siêu nhanh)
 
----
+### Flow chi tiết từng bước
 
-## Score
-Điểm của user trong session.
+**Bước 1: Người chơi vào phòng**
 
-Score được lưu trong **Postgres** để đảm bảo dữ liệu an toàn.
+Người chơi mở trình duyệt, kết nối WebSocket đến server, gửi kèm session_id để server biết người này thuộc phòng nào.
 
----
+Server nhận kết nối, lưu vào "phòng" tương ứng.
 
-## Leaderboard
-Leaderboard hiển thị thứ hạng người chơi trong session.
+**Bước 2: Người chơi trả lời câu hỏi**
 
-Redis được dùng để:
+Người chơi gửi đáp án qua API:
+- Server nhận được đáp án
+- Lấy câu hỏi từ database
+- So sánh đáp án của user với đáp án đúng
+- Tính tổng điểm (đúng mỗi câu +1 điểm)
 
-- cập nhật điểm nhanh
-- lấy danh sách top người chơi nhanh
+**Bước 3: Lưu kết quả**
 
----
+- Lưu điểm vào PostgreSQL (để lưu trữ lâu dài)
+- Cập nhật leaderboard trong Redis (để truy vấn nhanh)
 
-# 4. Kiến trúc
+**Bước 4: Gửi kết quả cho TẤT CẢ người trong phòng**
 
-Hệ thống được chia thành các phần chính:
+Đây là bước quan trọng nhất!
 
-- **Domain** – chứa entity và logic nghiệp vụ
-- **Application** – xử lý các luồng chính như join session, submit answer
-- **Infrastructure** – làm việc với Postgres, Redis và WebSocket
-- **Delivery** – cung cấp HTTP API
+- Server tìm tất cả những người đang ở trong cùng session
+- Gửi tin nhắn WebSocket cho họ
+- Tin nhắn chứa: ai vừa submit, được bao nhiêu điểm, bảng xếp hạng mới
 
-Cách chia này giúp code **dễ đọc, dễ test và dễ mở rộng**.
+**Bước 5: Người chơi nhận được tin**
 
----
+Trình duyệt nhận được tin nhắn WebSocket, hiển thị leaderboard mới lên màn hình.
 
-# 5. Chạy project
-
-## Chạy local
-
-Yêu cầu:
-
-- Go
-- Postgres
-- Redis
-
-Chạy server:
-
-
-- go run ./cmd/server
-
-
-Server mặc định chạy ở port **8080**.
+Người chơi thấy ngay: "À, thằng A vừa được 8 điểm, nó đang dẫn đầu!"
 
 ---
 
-## Chạy bằng Docker
+## Giải pháp này giải quyết được những gì?
 
-Build image:
+| Yêu cầu | Có giải quyết không? |
+|----------|----------------|
+| User join session |  OK |
+| Nhiều user cùng session |  OK |
+| Real-time score |  OK |
+| Real-time leaderboard |  OK |
+| Scale được |  OK |
 
-- make docker-build
+---
 
-Run container:
+## Tổng kết
 
-- make docker-run
+Bài toán này về cơ bản là bài toán **truyền tin real-time**.
 
-Sau khi run là có thể tiến hành test và apply đúng như yêu cầu bài toán trên thông qua các tool như Postman
+Giải pháp hiện tại:
+- Dùng WebSocket để gửi tin nhắn tức thì
+- Redis để xử lý leaderboard nhanh nhất có thể
+- Clean architecture để code dễ đọc, dễ test, dễ bảo trì
